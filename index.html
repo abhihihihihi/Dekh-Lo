@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dekh Lo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6C63FF;
+            --accent-color: #FF6584;
+            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            --overlay-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--bg-gradient);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            color: #333;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+            font-weight: 800;
+            color: #2d3436;
+            text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.1);
+            font-size: 2.5rem;
+        }
+
+        /* Game Container Wrapper */
+        .game-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+        }
+
+        /* UI Overlay */
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 10;
+            transition: opacity 0.3s;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(108, 99, 255, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 99, 255, 0.6);
+        }
+
+        .score-hud {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #535353;
+            z-index: 5;
+        }
+
+        .info {
+            margin-top: 20px;
+            color: #636e72;
+            font-size: 0.9rem;
+        }
+
+        .info b {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Dekh Lo Final Boss</h2>
+
+    <div class="game-wrapper">
+        <div class="score-hud">Score: <span id="scoreVal">0</span></div>
+
+        <!-- Start / Game Over Screen -->
+        <div id="gameUI" class="ui-overlay">
+            <h1 id="uiTitle" style="margin: 0 0 20px 0; font-size: 3rem;">Ready?</h1>
+            <img id="gameOverImg" src="game_over.png"
+                style="display: none; max-width: 200px; height: auto; margin-bottom: 20px;">
+            <p id="uiScore" style="display: none; font-size: 1.5rem; margin-bottom: 20px;">Score: 0</p>
+            <button class="btn" onclick="startGame()">Start Run</button>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <p class="info">Press <b>Space</b> or <b>Tap</b> to Jump.</p>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiOverlay = document.getElementById('gameUI');
+        const uiTitle = document.getElementById('uiTitle');
+        const gameOverImg = document.getElementById('gameOverImg');
+        const uiScore = document.getElementById('uiScore');
+        const scoreVal = document.getElementById('scoreVal');
+        const startBtn = document.querySelector('.btn');
+
+        // --- Game Settings & Assets ---
+        const dinoImg = new Image();
+        dinoImg.src = 'dino.png';
+
+        const groundObsImg = new Image();
+        groundObsImg.src = 'prof_ground.png';
+
+        const airObsImg = new Image();
+        airObsImg.src = 'prof_air.png';
+
+        const groundAudio = new Audio('hi.mp3');
+        const airAudio = new Audio('dekh_lo.mp3');
+        const ouchAudio = new Audio('ouch.mp3');
+        groundAudio.loop = true;
+        airAudio.loop = true;
+
+        // Logical dimensions
+        const LOGICAL_WIDTH = 1000; // Wider logical width
+        const LOGICAL_HEIGHT = 400; // Taller for better scale
+        const ASPECT_RATIO = LOGICAL_WIDTH / LOGICAL_HEIGHT;
+
+        let score = 0;
+        let gameSpeed = 6;
+        let isPlaying = false;
+        let isGameOver = false;
+        let animationFrameId;
+
+        // --- Objects ---
+        // Scaled up Dino
+        const dino = {
+            x: 80,
+            y: 300, // Ground level - height
+            width: 80, // Bigger size
+            height: 80,
+            dy: 0,
+            jumpForce: 15,
+            gravity: 0.8,
+            grounded: false,
+            groundY: 300
+        };
+
+        let obstacles = [];
+
+        // --- Resizing Logic ---
+        function resize() {
+            let displayWidth = Math.min(window.innerWidth - 40, 1000);
+            let displayHeight = displayWidth / ASPECT_RATIO;
+
+            canvas.width = LOGICAL_WIDTH;
+            canvas.height = LOGICAL_HEIGHT;
+
+            canvas.style.width = `${displayWidth}px`;
+            canvas.style.height = `${displayHeight}px`;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Game Logic ---
+        function startGame() {
+            // Reset state
+            score = 0;
+            gameSpeed = 6;
+            isGameOver = false;
+            isPlaying = true;
+            obstacles = [];
+            dino.y = dino.groundY;
+            dino.dy = 0;
+            scoreVal.innerText = '0';
+
+            // Hide UI
+            uiOverlay.classList.add('hidden');
+            gameOverImg.style.display = 'none';
+            uiTitle.style.display = 'block';
+            uiTitle.innerText = "Ready?";
+
+            // Audio
+            // Cannot play audio without interaction, but this is triggered by a click so it's fine
+
+            lastTime = performance.now();
+            update();
+        }
+
+        function spawnObstacle() {
+            if (!isPlaying) return;
+            const type = Math.random() > 0.6 ? 'ground' : 'air';
+
+            // Scaled obstacles
+            const obsWidth = 50;
+            const obsHeight = 50;
+
+            // Align ground obstacle with the floor (dino.groundY + dino.height = floor)
+            const groundOffset = dino.height - obsHeight;
+            const yPos = type === 'ground' ? dino.groundY + groundOffset : dino.groundY - 90;
+
+            obstacles.push({
+                x: LOGICAL_WIDTH,
+                y: yPos,
+                width: obsWidth,
+                height: obsHeight,
+                type: type
+            });
+        }
+
+        function update() {
+            if (!isPlaying) return;
+
+            ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+
+            drawEnvironment();
+
+            // 1. Dino Physics
+            if (!dino.grounded) {
+                dino.dy += dino.gravity;
+                dino.y += dino.dy;
+            }
+
+            if (dino.y > dino.groundY) {
+                dino.y = dino.groundY;
+                dino.dy = 0;
+                dino.grounded = true;
+            }
+
+            // Draw Dino (with shadow)
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(dino.x + dino.width / 2, dino.y + dino.height + 5, 20, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.drawImage(dinoImg, dino.x, dino.y, dino.width, dino.height);
+
+            // 2. Obstacle Logic
+            let groundActive = false;
+            let airActive = false;
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let o = obstacles[i];
+                o.x -= gameSpeed;
+
+                // Draw Obstacles
+                // Use images instead of colored boxes
+                const obsImg = o.type === 'ground' ? groundObsImg : airObsImg;
+                ctx.drawImage(obsImg, o.x, o.y, o.width, o.height);
+
+                if (o.type === 'ground') groundActive = true;
+                if (o.type === 'air') airActive = true;
+
+                // Collision Detection (Hitbox slightly smaller than visual for fairness)
+                const hitboxPadding = 10;
+                if (dino.x + hitboxPadding < o.x + o.width &&
+                    dino.x + dino.width - hitboxPadding > o.x &&
+                    dino.y + hitboxPadding < o.y + o.height &&
+                    dino.y + dino.height - hitboxPadding > o.y) {
+                    gameOver();
+                }
+
+                if (o.x + o.width < 0) {
+                    obstacles.splice(i, 1);
+                    score++;
+                    scoreVal.innerText = score;
+                    // Increase speed slightly
+                    if (score % 5 === 0) gameSpeed += 0.5;
+                }
+            }
+
+            // 3. Audio
+            if (isPlaying) {
+                handleAudio(groundActive, groundAudio);
+                handleAudio(airActive, airAudio);
+            }
+
+            // 4. Ground Line
+            ctx.fillStyle = '#535353';
+            ctx.beginPath();
+            ctx.moveTo(0, dino.groundY + dino.height);
+            ctx.lineTo(LOGICAL_WIDTH, dino.groundY + dino.height);
+            ctx.stroke();
+
+            animationFrameId = requestAnimationFrame(update);
+        }
+
+        function drawEnvironment() {
+            // Sky Gradient
+            const grd = ctx.createLinearGradient(0, 0, 0, LOGICAL_HEIGHT);
+            grd.addColorStop(0, "#e0f7fa");
+            grd.addColorStop(1, "#fff");
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+
+            // Simple decorative floor
+            ctx.fillStyle = "#dfe6e9";
+            ctx.fillRect(0, dino.groundY + dino.height - 5, LOGICAL_WIDTH, 100);
+        }
+
+        function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+            if (typeof stroke === 'undefined') { stroke = true; }
+            if (typeof radius === 'undefined') { radius = 5; }
+            if (typeof radius === 'number') { radius = { tl: radius, tr: radius, br: radius, bl: radius }; } else { var defaultRadius = { tl: 0, tr: 0, br: 0, bl: 0 }; for (var side in defaultRadius) { radius[side] = radius[side] || defaultRadius[side]; } }
+            ctx.beginPath();
+            ctx.moveTo(x + radius.tl, y);
+            ctx.lineTo(x + width - radius.tr, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+            ctx.lineTo(x + width, y + height - radius.br);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+            ctx.lineTo(x + radius.bl, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+            ctx.lineTo(x, y + radius.tl);
+            ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+            ctx.closePath();
+            if (fill) { ctx.fill(); }
+            if (stroke) { ctx.stroke(); }
+        }
+
+        function handleAudio(active, audio) {
+            if (active) {
+                if (audio.paused) audio.play().catch(() => { });
+            } else {
+                audio.pause();
+                audio.currentTime = 0;
+            }
+        }
+
+        function gameOver() {
+            isPlaying = false;
+            isGameOver = true;
+            cancelAnimationFrame(animationFrameId);
+
+            groundAudio.pause();
+            airAudio.pause();
+
+            ouchAudio.play().catch(() => { });
+
+            uiTitle.style.display = 'none'; // Hide text title
+            gameOverImg.style.display = 'block'; // Show image
+
+            uiScore.innerText = `Score: ${score}`;
+            uiScore.style.display = 'block';
+            startBtn.innerText = "Try Again";
+
+            uiOverlay.classList.remove('hidden');
+        }
+
+        // --- Controls ---
+        const jump = () => {
+            if (dino.grounded && isPlaying) {
+                dino.dy = -dino.jumpForce;
+                dino.grounded = false;
+            }
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') jump();
+        });
+        window.addEventListener('touchstart', (e) => {
+            if (isPlaying) {
+                e.preventDefault(); // prevent scrolling
+                jump();
+            }
+        });
+
+        // Obstacle Spawner Loop
+        setInterval(() => {
+            if (isPlaying) spawnObstacle();
+        }, 1500);
+
+    </script>
+</body>
+
+</html>

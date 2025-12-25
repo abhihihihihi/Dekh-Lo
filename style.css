@@ -1,0 +1,276 @@
+:root {
+    --primary-color: #6C63FF;
+    --accent-color: #FF6584;
+    --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+    --overlay-bg: rgba(255, 255, 255, 0.9);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background: var(--bg-gradient);
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for mobile */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: #333;
+    touch-action: none;
+    /* Prevent scroll/zoom gestures */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+}
+
+h2 {
+    margin-bottom: 20px;
+    font-weight: 800;
+    color: #2d3436;
+    text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.1);
+    font-size: 2.5rem;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 600px) {
+    body {
+        padding: 0;
+        justify-content: center;
+        align-items: center;
+    }
+
+    h2 {
+        font-size: 1.4rem;
+        margin-bottom: 8px;
+        margin-top: 0;
+        text-align: center;
+        padding: 0 10px;
+    }
+
+    .info {
+        font-size: 0.7rem;
+        margin-top: 8px;
+        padding: 0 15px;
+        text-align: center;
+        margin-bottom: 0;
+    }
+
+    .btn {
+        padding: 14px 28px;
+        font-size: 1.1rem;
+        min-height: 48px; /* Better touch target */
+        width: auto;
+    }
+
+    #uiTitle {
+        font-size: 1.8rem !important;
+        margin-bottom: 15px !important;
+    }
+
+    .game-wrapper {
+        margin: 0 auto;
+        width: calc(100% - 20px);
+        max-width: calc(100% - 20px);
+        border-radius: 8px;
+        flex-shrink: 0;
+    }
+
+    .score-hud {
+        top: 8px;
+        right: 12px;
+        font-size: 1.1rem;
+    }
+
+    .ui-overlay {
+        padding: 20px;
+    }
+
+    #gameOverImg {
+        max-width: 140px !important;
+    }
+
+    #uiScore {
+        font-size: 1.2rem !important;
+    }
+}
+
+/* Very small screens */
+@media (max-width: 400px) {
+    h2 {
+        font-size: 1.1rem;
+        margin-bottom: 6px;
+    }
+
+    .info {
+        font-size: 0.65rem;
+        margin-top: 6px;
+    }
+
+    .btn {
+        padding: 12px 24px;
+        font-size: 1rem;
+    }
+
+    #uiTitle {
+        font-size: 1.5rem !important;
+    }
+
+    .score-hud {
+        font-size: 0.95rem;
+        top: 6px;
+        right: 10px;
+    }
+
+    .game-wrapper {
+        width: calc(100% - 16px);
+        max-width: calc(100% - 16px);
+    }
+}
+
+/* Landscape mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+    body {
+        padding: 5px;
+        justify-content: center;
+    }
+
+    h2 {
+        font-size: 1rem;
+        margin-bottom: 4px;
+    }
+
+    .info {
+        display: none; /* Hide instructions in landscape */
+    }
+
+    .game-wrapper {
+        max-height: calc(100vh - 50px);
+        width: calc(100% - 10px);
+        max-width: calc(100% - 10px);
+    }
+
+    .score-hud {
+        top: 5px;
+        right: 8px;
+        font-size: 0.9rem;
+    }
+}
+
+/* Game Container Wrapper */
+.game-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 1000px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    touch-action: none;
+    flex-shrink: 0;
+    margin: 0 auto;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+}
+
+/* UI Overlay */
+.ui-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(4px);
+    z-index: 10;
+    transition: opacity 0.3s;
+}
+
+.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(108, 99, 255, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+    font-family: 'Poppins', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 44px; /* Better touch target */
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(108, 99, 255, 0.6);
+}
+
+.btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 10px rgba(108, 99, 255, 0.4);
+}
+
+.score-hud {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #535353;
+    z-index: 5;
+}
+
+.info {
+    margin-top: 20px;
+    color: #636e72;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+.info b {
+    color: var(--primary-color);
+}
+
+.desktop-only {
+    display: inline;
+}
+
+.mobile-only {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    .desktop-only {
+        display: none;
+    }
+
+    .mobile-only {
+        display: inline;
+    }
+}

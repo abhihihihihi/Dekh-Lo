@@ -3,116 +3,14 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Dekh Lo</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #6C63FF;
-            --accent-color: #FF6584;
-            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-            --overlay-bg: rgba(255, 255, 255, 0.9);
-        }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: var(--bg-gradient);
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            color: #333;
-        }
-
-        h2 {
-            margin-bottom: 20px;
-            font-weight: 800;
-            color: #2d3436;
-            text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.1);
-            font-size: 2.5rem;
-        }
-
-        /* Game Container Wrapper */
-        .game-wrapper {
-            position: relative;
-            width: 100%;
-            max-width: 1000px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-            border-radius: 12px;
-            overflow: hidden;
-            background: #fff;
-        }
-
-        canvas {
-            display: block;
-            width: 100%;
-        }
-
-        /* UI Overlay */
-        .ui-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(4px);
-            z-index: 10;
-            transition: opacity 0.3s;
-        }
-
-        .hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 1.2rem;
-            font-weight: 600;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(108, 99, 255, 0.4);
-            transition: transform 0.2s, box-shadow 0.2s;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(108, 99, 255, 0.6);
-        }
-
-        .score-hud {
-            position: absolute;
-            top: 20px;
-            right: 30px;
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #535353;
-            z-index: 5;
-        }
-
-        .info {
-            margin-top: 20px;
-            color: #636e72;
-            font-size: 0.9rem;
-        }
-
-        .info b {
-            color: var(--primary-color);
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js"></script>
 </head>
 
 <body>
@@ -134,7 +32,11 @@
         <canvas id="gameCanvas"></canvas>
     </div>
 
-    <p class="info">Press <b>Space</b> or <b>Tap</b> to Jump.</p>
+    <p class="info">
+        <span class="desktop-only">Press <b>Space</b> or </span>
+        <span class="mobile-only">Tap anywhere to </span>
+        <b>Jump</b>.
+    </p>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -172,6 +74,8 @@
         let isPlaying = false;
         let isGameOver = false;
         let animationFrameId;
+        let obstacleSpawnInterval;
+        let lastSpeedIncrease = 0;
 
         // --- Objects ---
         // Scaled up Dino
@@ -191,8 +95,36 @@
 
         // --- Resizing Logic ---
         function resize() {
-            let displayWidth = Math.min(window.innerWidth - 40, 1000);
+            const isMobile = window.innerWidth <= 600;
+            const isLandscape = window.innerHeight < window.innerWidth && window.innerHeight < 500;
+            
+            // Better mobile handling
+            let displayWidth;
+            if (isMobile) {
+                // Use more of the screen on mobile, accounting for padding
+                const padding = 20;
+                displayWidth = Math.min(window.innerWidth - padding, 1000);
+            } else {
+                displayWidth = Math.min(window.innerWidth - 40, 1000);
+            }
+            
             let displayHeight = displayWidth / ASPECT_RATIO;
+            
+            // In landscape mobile, limit height to fit screen
+            if (isLandscape) {
+                const maxHeight = window.innerHeight - 60; // Account for title
+                if (displayHeight > maxHeight) {
+                    displayHeight = maxHeight;
+                    displayWidth = displayHeight * ASPECT_RATIO;
+                }
+            } else if (isMobile) {
+                // In portrait mobile, ensure it fits with title and info
+                const availableHeight = window.innerHeight - 120; // Account for title + info + spacing
+                if (displayHeight > availableHeight) {
+                    displayHeight = availableHeight;
+                    displayWidth = displayHeight * ASPECT_RATIO;
+                }
+            }
 
             canvas.width = LOGICAL_WIDTH;
             canvas.height = LOGICAL_HEIGHT;
@@ -202,18 +134,50 @@
         }
 
         window.addEventListener('resize', resize);
+        window.addEventListener('orientationchange', () => {
+            // Delay resize slightly to ensure correct dimensions after orientation change
+            setTimeout(() => {
+                resize();
+                // Force a repaint
+                if (isPlaying) {
+                    ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+                }
+            }, 150);
+        });
+        
+        // Initial resize
         resize();
+        
+        // Also resize after a short delay to handle mobile browser bars
+        setTimeout(resize, 100);
 
         // --- Game Logic ---
         function startGame() {
+            // Clean up any existing game loops
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            if (obstacleSpawnInterval) {
+                clearInterval(obstacleSpawnInterval);
+            }
+
+            // Stop all audio
+            groundAudio.pause();
+            airAudio.pause();
+            groundAudio.currentTime = 0;
+            airAudio.currentTime = 0;
+
             // Reset state
             score = 0;
             gameSpeed = 6;
+            lastSpeedIncrease = 0;
             isGameOver = false;
             isPlaying = true;
+            canJump = true;
             obstacles = [];
             dino.y = dino.groundY;
             dino.dy = 0;
+            dino.grounded = true;
             scoreVal.innerText = '0';
 
             // Hide UI
@@ -221,16 +185,26 @@
             gameOverImg.style.display = 'none';
             uiTitle.style.display = 'block';
             uiTitle.innerText = "Ready?";
+            uiScore.style.display = 'none';
+            startBtn.innerText = "Start Run";
 
-            // Audio
-            // Cannot play audio without interaction, but this is triggered by a click so it's fine
-
-            lastTime = performance.now();
+            // Start game loop
             update();
+
+            // Start obstacle spawner
+            obstacleSpawnInterval = setInterval(() => {
+                if (isPlaying) spawnObstacle();
+            }, 1500);
         }
 
         function spawnObstacle() {
             if (!isPlaying) return;
+            
+            // Prevent spawning if there are too many obstacles or one is too close
+            const minDistance = 200;
+            const hasCloseObstacle = obstacles.some(o => o.x > LOGICAL_WIDTH - minDistance);
+            if (hasCloseObstacle || obstacles.length > 3) return;
+            
             const type = Math.random() > 0.6 ? 'ground' : 'air';
 
             // Scaled obstacles
@@ -275,7 +249,14 @@
             ctx.ellipse(dino.x + dino.width / 2, dino.y + dino.height + 5, 20, 5, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.drawImage(dinoImg, dino.x, dino.y, dino.width, dino.height);
+            // Draw dino image if loaded, otherwise fallback
+            if (dinoImg.complete && dinoImg.naturalWidth > 0) {
+                ctx.drawImage(dinoImg, dino.x, dino.y, dino.width, dino.height);
+            } else {
+                // Fallback: draw colored rectangle
+                ctx.fillStyle = '#6C63FF';
+                ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+            }
 
             // 2. Obstacle Logic
             let groundActive = false;
@@ -285,29 +266,42 @@
                 let o = obstacles[i];
                 o.x -= gameSpeed;
 
-                // Draw Obstacles
-                // Use images instead of colored boxes
+                // Draw Obstacles (only if images are loaded)
                 const obsImg = o.type === 'ground' ? groundObsImg : airObsImg;
-                ctx.drawImage(obsImg, o.x, o.y, o.width, o.height);
+                if (obsImg.complete && obsImg.naturalWidth > 0) {
+                    ctx.drawImage(obsImg, o.x, o.y, o.width, o.height);
+                } else {
+                    // Fallback: draw colored rectangle if image not loaded
+                    ctx.fillStyle = o.type === 'ground' ? '#FF6584' : '#6C63FF';
+                    ctx.fillRect(o.x, o.y, o.width, o.height);
+                }
 
-                if (o.type === 'ground') groundActive = true;
-                if (o.type === 'air') airActive = true;
+                // Check if obstacle is visible on screen
+                if (o.x + o.width > 0 && o.x < LOGICAL_WIDTH) {
+                    if (o.type === 'ground') groundActive = true;
+                    if (o.type === 'air') airActive = true;
+                }
 
                 // Collision Detection (Hitbox slightly smaller than visual for fairness)
                 const hitboxPadding = 10;
-                if (dino.x + hitboxPadding < o.x + o.width &&
+                if (!isGameOver &&
+                    dino.x + hitboxPadding < o.x + o.width &&
                     dino.x + dino.width - hitboxPadding > o.x &&
                     dino.y + hitboxPadding < o.y + o.height &&
                     dino.y + dino.height - hitboxPadding > o.y) {
                     gameOver();
+                    break; // Exit loop once collision detected
                 }
 
                 if (o.x + o.width < 0) {
                     obstacles.splice(i, 1);
                     score++;
                     scoreVal.innerText = score;
-                    // Increase speed slightly
-                    if (score % 5 === 0) gameSpeed += 0.5;
+                    // Increase speed slightly every 5 points (only once per milestone)
+                    if (score % 5 === 0 && score !== lastSpeedIncrease) {
+                        gameSpeed += 0.5;
+                        lastSpeedIncrease = score;
+                    }
                 }
             }
 
@@ -369,12 +363,22 @@
         }
 
         function gameOver() {
+            if (isGameOver) return; // Prevent multiple calls
+            
             isPlaying = false;
             isGameOver = true;
-            cancelAnimationFrame(animationFrameId);
+            
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            if (obstacleSpawnInterval) {
+                clearInterval(obstacleSpawnInterval);
+            }
 
             groundAudio.pause();
             airAudio.pause();
+            groundAudio.currentTime = 0;
+            airAudio.currentTime = 0;
 
             ouchAudio.play().catch(() => { });
 
@@ -389,27 +393,57 @@
         }
 
         // --- Controls ---
+        let canJump = true; // Prevent rapid jumping
+        
         const jump = () => {
-            if (dino.grounded && isPlaying) {
+            if (dino.grounded && isPlaying && canJump) {
                 dino.dy = -dino.jumpForce;
                 dino.grounded = false;
+                canJump = false;
+                // Small delay to prevent double jumps
+                setTimeout(() => {
+                    canJump = true;
+                }, 100);
             }
         };
 
+        // Keyboard controls
         window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') jump();
-        });
-        window.addEventListener('touchstart', (e) => {
-            if (isPlaying) {
-                e.preventDefault(); // prevent scrolling
+            if (e.code === 'Space') {
+                e.preventDefault(); // Prevent space bar from scrolling
                 jump();
             }
         });
 
-        // Obstacle Spawner Loop
-        setInterval(() => {
-            if (isPlaying) spawnObstacle();
-        }, 1500);
+        // Touch controls - improved for mobile
+        let touchStartY = 0;
+        
+        const handleTouchStart = (e) => {
+            e.preventDefault(); // Always prevent default to avoid scrolling
+            touchStartY = e.touches[0].clientY;
+            if (isPlaying) {
+                jump();
+            }
+        };
+
+        const handleTouchMove = (e) => {
+            if (isPlaying) {
+                e.preventDefault();
+            }
+        };
+
+        const handleTouchEnd = (e) => {
+            if (isPlaying) {
+                e.preventDefault();
+            }
+        };
+
+        // Add touch listeners to window and canvas for better mobile support
+        [window, canvas].forEach(element => {
+            element.addEventListener('touchstart', handleTouchStart, { passive: false });
+            element.addEventListener('touchmove', handleTouchMove, { passive: false });
+            element.addEventListener('touchend', handleTouchEnd, { passive: false });
+        });
 
     </script>
 </body>
